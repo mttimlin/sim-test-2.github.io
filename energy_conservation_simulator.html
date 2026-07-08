@@ -1,0 +1,803 @@
+<!-- Energy Conservation Simulator — Newton's Playground -->
+<style>
+  .ecs-root{
+    --bg: #182430; --bg-deep: #101923; --grid: #22303d;
+    --chalk: #EDEAE0; --chalk-dim: #a8aca7;
+    --ke: #F2A93B; --pe: #3EC1D3; --loss: #E2665A; --flag: #C084F5;
+    --total-line: #EDEAE0;
+    --panel: #1e2c39; --panel-border: #2c3d4d;
+    --input-bg: #0d1620;
+    background: var(--bg); color: var(--chalk);
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    padding: 20px; border-radius: 16px; max-width: 1100px; margin: 0 auto;
+    transition: background 0.25s, color 0.25s;
+  }
+  .ecs-root[data-theme="light"]{
+    --bg: #EEF2F5; --bg-deep: #E2E8ED; --grid: #d3dce2;
+    --chalk: #1c2733; --chalk-dim: #5b6b78;
+    --panel: #ffffff; --panel-border: #d7dee4; --input-bg: #f2f5f7;
+  }
+  .ecs-root *{ box-sizing: border-box; }
+  .ecs-mono{ font-family: 'SF Mono', 'Consolas', 'Menlo', monospace; }
+  .ecs-header{ display:flex; justify-content: space-between; align-items: baseline; margin-bottom: 14px; flex-wrap: wrap; gap: 8px; }
+  .ecs-title{ font-size: 22px; font-weight: 700; letter-spacing: 0.3px; }
+  .ecs-title .accent{ color: var(--ke); }
+  .ecs-sub{ font-size: 12.5px; color: var(--chalk-dim); }
+  .ecs-header-right{ display:flex; align-items:center; gap: 10px; }
+  .ecs-theme-select, .ecs-preset-select{
+    background: var(--panel); color: var(--chalk); border: 1px solid var(--panel-border);
+    border-radius: 8px; padding: 5px 8px; font-size: 12px; cursor:pointer;
+  }
+  .ecs-main{ display:flex; gap: 18px; align-items: flex-start; flex-wrap: wrap; }
+  .ecs-left{ flex: 1 1 640px; min-width: 320px; display:flex; flex-direction: column; gap: 14px; }
+  .ecs-track-wrap{ background: var(--bg-deep); border: 1px solid var(--panel-border); border-radius: 12px; padding: 8px; position: relative; }
+  .ecs-track-wrap canvas{ display:block; width: 100%; height: auto; border-radius: 8px; cursor: grab; touch-action: none; }
+  .ecs-track-wrap canvas:active{ cursor: grabbing; }
+  .ecs-hint{ position:absolute; top: 18px; left: 18px; font-size: 11.5px; color: var(--chalk-dim); background: rgba(16,25,35,0.75); padding: 4px 9px; border-radius: 20px; pointer-events:none; transition: opacity 0.4s; }
+  .ecs-root[data-theme="light"] .ecs-hint{ background: rgba(255,255,255,0.8); }
+  .ecs-feedback-overlay{ position:absolute; inset:0; display:flex; align-items:center; justify-content:center; pointer-events:none; }
+  .ecs-feedback-msg{ pointer-events:auto; cursor:pointer; background: var(--panel); border: 2px solid var(--ke); color: var(--chalk); padding: 16px 26px; border-radius: 14px; font-size: 16px; font-weight: 700; box-shadow: 0 8px 30px rgba(0,0,0,0.35); text-align:center; opacity:0; transform: scale(0.85); transition: opacity 0.25s, transform 0.25s; }
+  .ecs-feedback-msg.show{ opacity:1; transform: scale(1); }
+  .ecs-feedback-msg .small{ display:block; font-size: 11.5px; font-weight: 400; color: var(--chalk-dim); margin-top: 5px; }
+  .ecs-right{ flex: 0 0 250px; display:flex; flex-direction: column; gap: 12px; }
+  .ecs-panel{ background: var(--panel); border: 1px solid var(--panel-border); border-radius: 12px; padding: 14px 16px; }
+  .ecs-panel h4{ margin: 0 0 10px 0; font-size: 11px; text-transform: uppercase; letter-spacing: 1.2px; color: var(--chalk-dim); font-weight: 600; }
+  .ecs-bars{ display:flex; gap: 8px; align-items: flex-end; height: 170px; padding-top: 6px; }
+  .ecs-bar-col{ flex:1; display:flex; flex-direction: column; align-items: center; height: 100%; justify-content: flex-end; }
+  .ecs-bar-track{ width: 100%; max-width: 38px; height: 100%; background: var(--input-bg); border-radius: 6px; display:flex; flex-direction: column-reverse; overflow:hidden; border: 1px solid var(--panel-border); }
+  .ecs-bar-fill{ width: 100%; border-radius: 4px 4px 0 0; transition: height 0.05s linear; }
+  .ecs-bar-label{ margin-top: 8px; font-size: 10px; color: var(--chalk-dim); text-align:center; line-height: 1.3; }
+  .ecs-bar-value{ font-size: 11.5px; font-weight: 600; color: var(--chalk); }
+  .ecs-readout-row{ display:flex; justify-content: space-between; font-size: 12.5px; padding: 4px 0; border-bottom: 1px dashed var(--panel-border); }
+  .ecs-readout-row:last-child{ border-bottom: none; }
+  .ecs-readout-label{ color: var(--chalk-dim); }
+  .ecs-readout-value{ font-weight: 600; }
+  .ecs-controls-panel{ background: var(--panel); border: 1px solid var(--panel-border); border-radius: 12px; padding: 14px 16px; display:flex; flex-direction: column; gap: 12px; }
+  .ecs-row{ display:flex; gap: 10px; flex-wrap: wrap; align-items:center; }
+  .ecs-mode-toggle{ display:flex; gap: 6px; background: var(--input-bg); border-radius: 9px; padding: 3px; }
+  .ecs-mode-btn{ border:none; background: transparent; color: var(--chalk-dim); padding: 6px 14px; border-radius: 7px; font-size: 12.5px; font-weight: 600; cursor:pointer; }
+  .ecs-mode-btn.active{ background: var(--ke); color: #211505; }
+  .ecs-grid-controls{ display:grid; grid-template-columns: 1fr 1fr; gap: 10px 16px; }
+  .ecs-slider-row label{ display:flex; justify-content: space-between; font-size: 12px; margin-bottom: 4px; color: var(--chalk-dim); }
+  .ecs-slider-row label span.val{ color: var(--chalk); font-weight: 600; }
+  input[type="range"]{ -webkit-appearance: none; width: 100%; height: 4px; border-radius: 2px; background: var(--panel-border); outline:none; }
+  input[type="range"]::-webkit-slider-thumb{ -webkit-appearance: none; width: 15px; height: 15px; border-radius: 50%; background: var(--ke); cursor:pointer; border: 2px solid var(--input-bg); }
+  input[type="range"]::-moz-range-thumb{ width: 15px; height: 15px; border-radius: 50%; background: var(--ke); cursor:pointer; border: 2px solid var(--input-bg); }
+  .ecs-checks-row{ display:flex; gap: 16px; flex-wrap: wrap; }
+  .ecs-checkbox-row{ display:flex; align-items:center; gap: 7px; font-size: 12px; color: var(--chalk-dim); cursor:pointer; user-select:none; }
+  .ecs-checkbox-row input{ accent-color: var(--ke); width:14px; height:14px; }
+  .ecs-btn-row{ display:flex; gap: 8px; }
+  .ecs-btn{ flex:1; background: var(--input-bg); border: 1px solid var(--panel-border); color: var(--chalk); padding: 9px 4px; border-radius: 8px; font-size: 12.5px; font-weight: 600; cursor:pointer; transition: filter 0.15s; }
+  .ecs-btn:hover{ filter: brightness(1.2); }
+  .ecs-btn.primary{ background: var(--ke); color: #211505; border-color: var(--ke); }
+  .ecs-btn.primary:hover{ filter: brightness(1.05); }
+  .ecs-challenge-box{ display:flex; flex-direction: column; gap: 10px; border-top: 1px solid var(--panel-border); padding-top: 12px; }
+  .ecs-difficulty-row{ display:flex; gap: 6px; }
+  .ecs-diff-btn{ flex:1; border:1px solid var(--panel-border); background: var(--input-bg); color: var(--chalk-dim); padding: 6px 4px; border-radius: 7px; font-size: 12px; font-weight:600; cursor:pointer; }
+  .ecs-diff-btn.active{ background: var(--pe); color: #062126; border-color: var(--pe); }
+  .ecs-prompt-box{ background: var(--input-bg); border: 1px solid var(--panel-border); border-radius: 9px; padding: 10px 12px; font-size: 12.5px; line-height: 1.5; min-height: 20px; }
+  .ecs-answer-row{ display:flex; gap: 8px; align-items:center; }
+  .ecs-answer-row input[type="number"]{ flex:1; background: var(--input-bg); border: 1px solid var(--panel-border); color: var(--chalk); padding: 8px 10px; border-radius: 8px; font-size: 13px; }
+  .ecs-unit-label{ font-size: 12.5px; color: var(--chalk-dim); min-width: 34px; }
+  .ecs-graph-wrap{ margin-top: 4px; background: var(--bg-deep); border: 1px solid var(--panel-border); border-radius: 12px; padding: 10px 12px; }
+  .ecs-graph-wrap h4{ margin: 0 0 8px 0; font-size: 11px; text-transform: uppercase; letter-spacing: 1.2px; color: var(--chalk-dim); font-weight: 600; }
+  .ecs-graph-wrap canvas{ cursor: crosshair; }
+  .ecs-legend{ display:flex; gap: 16px; font-size: 11.5px; color: var(--chalk-dim); margin-top: 6px; flex-wrap: wrap; }
+  .ecs-legend span{ display:flex; align-items:center; gap:6px; }
+  .ecs-dot{ width:9px; height:9px; border-radius:50%; display:inline-block; }
+  @media (max-width: 760px){ .ecs-grid-controls{ grid-template-columns: 1fr; } .ecs-right{ flex: 1 1 auto; } }
+</style>
+
+<div class="ecs-root" id="ecs-root">
+  <div class="ecs-header">
+    <div>
+      <div class="ecs-title">Energy Conservation<span class="accent">.</span></div>
+      <div class="ecs-sub" id="ecs-sub-hint">Drag the ball to set its starting point. Toggle "Edit Track" to reshape it.</div>
+    </div>
+    <div class="ecs-header-right">
+      <select class="ecs-preset-select" id="ecs-preset-select">
+        <option value="twoHumps">Track: Two Hills</option>
+        <option value="bowl">Track: Parabolic Bowl</option>
+        <option value="loop">Track: Loop</option>
+        <option value="sslide">Track: S-Curve Slide</option>
+      </select>
+      <select class="ecs-theme-select" id="ecs-theme-select">
+        <option value="system">Theme: System</option>
+        <option value="light">Theme: Light</option>
+        <option value="dark">Theme: Dark</option>
+      </select>
+      <div class="ecs-sub ecs-mono" id="ecs-status">READY</div>
+    </div>
+  </div>
+
+  <div class="ecs-main">
+    <div class="ecs-left">
+      <div class="ecs-track-wrap">
+        <canvas id="ecs-canvas" width="800" height="440"></canvas>
+        <div class="ecs-hint" id="ecs-hint">click + drag the ball</div>
+        <div class="ecs-feedback-overlay"><div class="ecs-feedback-msg" id="ecs-feedback-msg"></div></div>
+      </div>
+
+      <div class="ecs-controls-panel">
+        <div class="ecs-row" style="justify-content: space-between;">
+          <div class="ecs-mode-toggle">
+            <button class="ecs-mode-btn active" id="ecs-mode-lab">Lab Mode</button>
+            <button class="ecs-mode-btn" id="ecs-mode-challenge">Challenge Mode</button>
+          </div>
+          <div class="ecs-btn-row" style="flex: 0 0 auto;">
+            <button class="ecs-btn primary" id="ecs-play">Play</button>
+            <button class="ecs-btn" id="ecs-reset">Reset</button>
+          </div>
+        </div>
+
+        <div id="ecs-lab-controls">
+          <div class="ecs-grid-controls">
+            <div class="ecs-slider-row">
+              <label>Friction <span class="val" id="ecs-fric-val">0.00</span></label>
+              <input type="range" id="ecs-fric" min="0" max="0.5" step="0.01" value="0">
+            </div>
+            <div class="ecs-slider-row">
+              <label>Mass <span class="val" id="ecs-mass-val">1.0 kg</span></label>
+              <input type="range" id="ecs-mass" min="0.5" max="3" step="0.1" value="1">
+            </div>
+            <div class="ecs-slider-row">
+              <label>Initial velocity <span class="val" id="ecs-ivel-val">0.0 m/s</span></label>
+              <input type="range" id="ecs-ivel" min="-5" max="5" step="0.1" value="0">
+            </div>
+            <div class="ecs-slider-row">
+              <label>Sim speed <span class="val" id="ecs-speed-val">1.0x</span></label>
+              <input type="range" id="ecs-speed" min="0.25" max="2" step="0.25" value="1">
+            </div>
+          </div>
+          <div class="ecs-row" style="margin-top:10px;">
+            <div style="flex:1 1 160px;">
+              <div class="ecs-slider-row">
+                <label>Gravity (g) <span class="val" id="ecs-grav-val">9.8 N/kg</span></label>
+                <input type="range" id="ecs-grav" min="1" max="26" step="0.1" value="9.8">
+              </div>
+            </div>
+            <select class="ecs-preset-select" id="ecs-grav-preset" style="flex:0 0 150px;">
+              <option value="">g preset…</option>
+              <option value="9.8">Earth (9.8)</option>
+              <option value="10">Earth — AP (10)</option>
+              <option value="1.6">Moon (1.6)</option>
+              <option value="3.7">Mars (3.7)</option>
+              <option value="24.8">Jupiter (24.8)</option>
+            </select>
+          </div>
+          <div class="ecs-checks-row" style="margin-top:10px;">
+            <label class="ecs-checkbox-row"><input type="checkbox" id="ecs-trail" checked> Motion trail</label>
+            <label class="ecs-checkbox-row"><input type="checkbox" id="ecs-edit-track"> Edit track</label>
+            <label class="ecs-checkbox-row"><input type="checkbox" id="ecs-scale"> Show height scale</label>
+          </div>
+        </div>
+
+        <div id="ecs-challenge-controls" class="ecs-challenge-box" style="display:none;">
+          <div class="ecs-difficulty-row">
+            <button class="ecs-diff-btn active" data-diff="easy">Easy</button>
+            <button class="ecs-diff-btn" data-diff="medium">Medium</button>
+            <button class="ecs-diff-btn" data-diff="hard">Hard</button>
+          </div>
+          <div class="ecs-prompt-box" id="ecs-prompt-box">Generating a challenge…</div>
+          <div class="ecs-answer-row">
+            <input type="number" step="any" id="ecs-answer-input" placeholder="Your answer">
+            <span class="ecs-unit-label" id="ecs-unit-label">m/s</span>
+            <button class="ecs-btn primary" id="ecs-check-btn" style="flex: 0 0 90px;">Check</button>
+          </div>
+          <button class="ecs-btn" id="ecs-new-challenge">New challenge</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="ecs-right">
+      <div class="ecs-panel">
+        <h4>Energy</h4>
+        <div class="ecs-bars">
+          <div class="ecs-bar-col"><div class="ecs-bar-value" id="ecs-ke-val">0 J</div><div class="ecs-bar-track"><div class="ecs-bar-fill" id="ecs-ke-bar" style="height:0%; background:var(--ke);"></div></div><div class="ecs-bar-label">Kinetic</div></div>
+          <div class="ecs-bar-col"><div class="ecs-bar-value" id="ecs-pe-val">0 J</div><div class="ecs-bar-track"><div class="ecs-bar-fill" id="ecs-pe-bar" style="height:0%; background:var(--pe);"></div></div><div class="ecs-bar-label">Potential</div></div>
+          <div class="ecs-bar-col"><div class="ecs-bar-value" id="ecs-loss-val">0 J</div><div class="ecs-bar-track"><div class="ecs-bar-fill" id="ecs-loss-bar" style="height:0%; background:var(--loss);"></div></div><div class="ecs-bar-label">Lost to<br>friction</div></div>
+          <div class="ecs-bar-col"><div class="ecs-bar-value" id="ecs-total-val">0 J</div><div class="ecs-bar-track"><div class="ecs-bar-fill" id="ecs-total-bar" style="height:0%; background:var(--total-line); opacity:0.35;"></div></div><div class="ecs-bar-label">Total</div></div>
+        </div>
+      </div>
+      <div class="ecs-panel">
+        <h4>Readouts</h4>
+        <div class="ecs-readout-row"><span class="ecs-readout-label">Height</span><span class="ecs-readout-value ecs-mono" id="ecs-h-val">0.00 m</span></div>
+        <div class="ecs-readout-row"><span class="ecs-readout-label">Speed</span><span class="ecs-readout-value ecs-mono" id="ecs-v-val">0.00 m/s</span></div>
+        <div class="ecs-readout-row"><span class="ecs-readout-label">Mass</span><span class="ecs-readout-value ecs-mono" id="ecs-m-val">1.00 kg</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="ecs-graph-wrap">
+    <h4>Energy over time <span style="text-transform:none; letter-spacing:0; font-weight:400;">— hover the graph to inspect a point</span></h4>
+    <canvas id="ecs-graph" width="1000" height="150" style="width:100%; height:150px; display:block;"></canvas>
+    <div class="ecs-legend">
+      <span><i class="ecs-dot" style="background:var(--ke);"></i>Kinetic</span>
+      <span><i class="ecs-dot" style="background:var(--pe);"></i>Potential</span>
+      <span><i class="ecs-dot" style="background:var(--loss);"></i>Lost to friction</span>
+      <span><i class="ecs-dot" style="background:var(--total-line); opacity:0.6;"></i>Total (should stay flat)</span>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  const root = document.getElementById('ecs-root');
+  const canvas = document.getElementById('ecs-canvas');
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width, H = canvas.height;
+  const graphCanvas = document.getElementById('ecs-graph');
+  const gctx = graphCanvas.getContext('2d');
+
+  // ================= THEME =================
+  const darkColors = { bg:'#182430', bgDeep:'#101923', grid:'#22303d', chalk:'#EDEAE0', chalkDim:'#a8aca7', panel:'#1e2c39', ke:'#F2A93B', pe:'#3EC1D3', loss:'#E2665A', flag:'#C084F5', total:'#EDEAE0' };
+  const lightColors = { bg:'#EEF2F5', bgDeep:'#E2E8ED', grid:'#d3dce2', chalk:'#1c2733', chalkDim:'#5b6b78', panel:'#ffffff', ke:'#c97f1a', pe:'#0f8fa3', loss:'#c94a3d', flag:'#8a4fd1', total:'#1c2733' };
+  let themePref = 'system';
+  function systemPrefersDark(){ return window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches; }
+  function activeIsDark(){ return themePref==='system' ? systemPrefersDark() : themePref==='dark'; }
+  function colors(){ return activeIsDark() ? darkColors : lightColors; }
+  function applyTheme(){ root.setAttribute('data-theme', activeIsDark()?'dark':'light'); }
+  document.getElementById('ecs-theme-select').addEventListener('change', e=>{ themePref=e.target.value; applyTheme(); draw(); drawGraph(); });
+  if(window.matchMedia){ window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', ()=>{ if(themePref==='system'){ applyTheme(); draw(); drawGraph(); } }); }
+  applyTheme();
+
+  // ================= TRACK: parametric 2D path (supports loops) =================
+  const maxHeightForScale = 6.5;
+  const worldXMax = 20;
+  let points = []; // array of {x,y}
+  let samples = []; // dense sampled points along the spline: {x,y}
+  let cumLen = [];  // cumulative arc length parallel to samples
+  let totalLength = 1;
+  let minY = 0;
+
+  function catmullRom(p0,p1,p2,p3,t){ return 0.5*((2*p1)+(-p0+p2)*t+(2*p0-5*p1+4*p2-p3)*t*t+(-p0+3*p1-3*p2+p3)*t*t*t); }
+
+  function buildSamples(){
+    samples = [];
+    const n = points.length;
+    const perSeg = 36;
+    for(let seg=0; seg<n-1; seg++){
+      const p0 = points[Math.max(0,seg-1)], p1 = points[seg], p2 = points[seg+1], p3 = points[Math.min(n-1,seg+2)];
+      const steps = seg===n-2 ? perSeg+1 : perSeg;
+      for(let i=0;i<steps;i++){
+        const t = i/perSeg;
+        const xx = catmullRom(p0.x,p1.x,p2.x,p3.x,t);
+        const yy = catmullRom(p0.y,p1.y,p2.y,p3.y,t);
+        samples.push({x:xx,y:yy});
+      }
+    }
+    cumLen = [0];
+    for(let i=1;i<samples.length;i++){
+      const d = Math.hypot(samples[i].x-samples[i-1].x, samples[i].y-samples[i-1].y);
+      cumLen.push(cumLen[i-1]+d);
+    }
+    totalLength = cumLen[cumLen.length-1] || 1;
+    minY = Infinity;
+    for(const s of samples) if(s.y < minY) minY = s.y;
+  }
+
+  function pathAt(s){
+    s = Math.max(0, Math.min(totalLength, s));
+    let lo=0, hi=cumLen.length-1;
+    while(lo < hi-1){ const mid=(lo+hi)>>1; if(cumLen[mid] <= s) lo=mid; else hi=mid; }
+    const segLen = cumLen[hi]-cumLen[lo] || 1;
+    const frac = (s-cumLen[lo])/segLen;
+    const a = samples[lo], b = samples[hi];
+    const x = a.x + (b.x-a.x)*frac, y = a.y + (b.y-a.y)*frac;
+    const dx = b.x-a.x, dy = b.y-a.y;
+    const len = Math.hypot(dx,dy) || 1;
+    return { x, y, tx: dx/len, ty: dy/len };
+  }
+
+  // ---- Presets ----
+  const presets = {
+    twoHumps: [[0,0.2],[2.5,4.0],[5,5.3],[7.5,2.0],[10,0.3],[12.5,1.0],[15,3.1],[17.5,2.4],[20,0.3]],
+    bowl: [[0,5.5],[2.5,3.4],[5,1.8],[7.5,0.6],[10,0.15],[12.5,0.6],[15,1.8],[17.5,3.4],[20,5.5]],
+    loop: (function(){
+      const cx=9, cy=1.5, r=1.3;
+      const ramp = [[0,6.0],[2.2,4.6],[4.4,2.8],[6.6,1.2],[9,0.2]];
+      const loopPts = [];
+      const angles = [-45,0,45,90,135,180,225,270];
+      for(const ang of angles){ const rad = ang*Math.PI/180; loopPts.push([cx+r*Math.cos(rad), cy+r*Math.sin(rad)]); }
+      const runway = [[11,0.2],[13,0.05],[15,0.05],[17,0.3],[20,0.6]];
+      return ramp.concat(loopPts, runway);
+    })(),
+    sslide: [[0,6.0],[2,5.7],[4,4.6],[6,2.4],[7,1.3],[8,0.9],[9,0.85],[10,0.9],[12,0.6],[14,0.3],[16,0.15],[18,0.1],[20,0.05]]
+  };
+  function loadPreset(name){
+    points = presets[name].map(p=>({x:p[0], y:p[1]}));
+    buildSamples();
+  }
+  loadPreset('twoHumps');
+
+  // world <-> screen (based on x,y coordinates, independent of arc length)
+  const marginX = 34, marginTop = 30, marginBottom = 40;
+  const plotW = W - marginX*2, plotH = H - marginTop - marginBottom;
+  function worldToScreenX(x){ return marginX + (x/worldXMax)*plotW; }
+  function worldToScreenY(y){ return marginTop + (1 - y/maxHeightForScale)*plotH; }
+  function screenToWorldX(sx){ return ((sx-marginX)/plotW) * worldXMax; }
+  function screenToWorldY(sy){ return maxHeightForScale * (1 - (sy-marginTop)/plotH); }
+
+  // ================= PHYSICS STATE =================
+  let gravity = 9.8;
+  let mass = 1.0, friction = 0.0, simSpeed = 1.0;
+  let s = 0, v = 0.0;
+  let running = false;
+  let thermalLoss = 0.0, initialTotalEnergy = 0.0;
+  let trail = [], showTrail = true;
+  let simTime = 0, history = [];
+  let stillTime = 0;
+  const STILL_THRESHOLD = 1.6;
+  let initialVelocitySetting = 0;
+
+  function defaultStartS(){ return totalLength*0.08; }
+
+  function peAt(ss){ return mass*gravity*(pathAt(ss).y - minY); }
+  function keAt(vv){ return 0.5*mass*vv*vv; }
+
+  // ================= MODE / CHALLENGE STATE =================
+  let mode = 'lab';
+  let difficulty = 'easy';
+  let editTrackEnabled = false;
+  let showScale = false;
+  let challenge = null;
+  let challengeChecking = false;
+  let particles = [];
+
+  function resetSim(newS){
+    if(newS !== undefined) s = newS;
+    v = mode==='lab' ? initialVelocitySetting : v;
+    thermalLoss = 0; trail = []; history = []; simTime = 0; stillTime = 0;
+    initialTotalEnergy = peAt(s) + keAt(v);
+    running = false;
+    document.getElementById('ecs-play').textContent = 'Play';
+    updateUI(); draw(); drawGraph();
+  }
+
+  function step(dt){
+    const p = pathAt(s);
+    const gTangential = -gravity * p.ty;
+    let frictionAccel = 0;
+    if(Math.abs(v) > 1e-4) frictionAccel = -friction*gravity*Math.abs(p.tx)*Math.sign(v);
+    const a = gTangential + frictionAccel;
+    const prevS = s;
+    v += a*dt;
+    const ds = v*dt;
+    if(Math.abs(v) > 1e-4){
+      const normalForce = mass*gravity*Math.abs(p.tx);
+      thermalLoss += friction*normalForce*Math.abs(ds);
+    }
+    s += ds;
+    if(s < 0.05){ s = 0.05; if(v<0) v=0; }
+    if(s > totalLength-0.05){ s = totalLength-0.05; if(v>0) v=0; }
+    simTime += dt;
+    if(showTrail){ const pp = pathAt(s); trail.push({x:pp.x,y:pp.y}); if(trail.length>500) trail.shift(); }
+    if(Math.abs(v) < 0.03){ stillTime += dt; } else { stillTime = 0; }
+
+    if(challengeChecking && challenge){
+      const crossed = (prevS - challenge.targetS) * (s - challenge.targetS) <= 0;
+      if(crossed){ s = challenge.targetS; finishChallengeCheck(); }
+    }
+  }
+
+  function updateUI(){
+    const ke = keAt(v), pe = peAt(s), loss = thermalLoss, total = ke+pe+loss;
+    const scaleTotal = Math.max(initialTotalEnergy, 0.001);
+    document.getElementById('ecs-ke-val').textContent = ke.toFixed(1)+' J';
+    document.getElementById('ecs-pe-val').textContent = pe.toFixed(1)+' J';
+    document.getElementById('ecs-loss-val').textContent = loss.toFixed(1)+' J';
+    document.getElementById('ecs-total-val').textContent = total.toFixed(1)+' J';
+    document.getElementById('ecs-ke-bar').style.height = Math.min(100,100*ke/scaleTotal)+'%';
+    document.getElementById('ecs-pe-bar').style.height = Math.min(100,100*pe/scaleTotal)+'%';
+    document.getElementById('ecs-loss-bar').style.height = Math.min(100,100*loss/scaleTotal)+'%';
+    document.getElementById('ecs-total-bar').style.height = Math.min(100,100*total/scaleTotal)+'%';
+    document.getElementById('ecs-h-val').textContent = (pathAt(s).y-minY).toFixed(2)+' m';
+    document.getElementById('ecs-v-val').textContent = Math.abs(v).toFixed(2)+' m/s';
+    document.getElementById('ecs-m-val').textContent = mass.toFixed(2)+' kg';
+    document.getElementById('ecs-status').textContent = running ? 'RUNNING' : (simTime>0 ? 'PAUSED' : 'READY');
+    history.push({t:simTime, ke, pe, loss, total});
+    if(history.length>900) history.shift();
+  }
+
+  function ballRadius(){ return 6 + 6*Math.sqrt(mass); }
+
+  // ================= DRAW: MAIN CANVAS =================
+  function draw(){
+    const C = colors();
+    ctx.clearRect(0,0,W,H);
+    ctx.fillStyle = C.grid;
+    for(let gx=marginX; gx<W-marginX+1; gx+=24){ for(let gy=marginTop; gy<H-marginBottom+1; gy+=24){ ctx.beginPath(); ctx.arc(gx,gy,1.1,0,Math.PI*2); ctx.fill(); } }
+
+    if(showScale){
+      ctx.fillStyle = C.chalkDim; ctx.font='11px sans-serif'; ctx.lineWidth=1;
+      for(let m=0;m<=6;m++){
+        const sy = worldToScreenY(m);
+        ctx.setLineDash([3,4]); ctx.strokeStyle = C.grid;
+        ctx.beginPath(); ctx.moveTo(marginX,sy); ctx.lineTo(W-marginX,sy); ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.fillText(m+' m', 4, sy+3);
+      }
+    }
+
+    if(showTrail && trail.length>1){
+      ctx.beginPath();
+      for(let i=0;i<trail.length;i++){ const sx=worldToScreenX(trail[i].x), sy=worldToScreenY(trail[i].y); if(i===0) ctx.moveTo(sx,sy); else ctx.lineTo(sx,sy); }
+      ctx.strokeStyle = C.ke+'40'; ctx.lineWidth=2; ctx.stroke();
+    }
+
+    // track (draw from sample table directly)
+    ctx.beginPath();
+    for(let i=0;i<samples.length;i++){ const sx=worldToScreenX(samples[i].x), sy=worldToScreenY(samples[i].y); if(i===0) ctx.moveTo(sx,sy); else ctx.lineTo(sx,sy); }
+    ctx.strokeStyle = C.chalk; ctx.lineWidth=3; ctx.lineJoin='round'; ctx.lineCap='round'; ctx.stroke();
+
+    // edit handles (free 2D drag)
+    if(editTrackEnabled && mode==='lab'){
+      for(let i=0;i<points.length;i++){
+        const sx = worldToScreenX(points[i].x), sy = worldToScreenY(points[i].y);
+        ctx.fillStyle = C.pe; ctx.strokeStyle = C.bgDeep; ctx.lineWidth=1.5;
+        ctx.fillRect(sx-6, sy-6, 12, 12); ctx.strokeRect(sx-6, sy-6, 12, 12);
+      }
+    }
+
+    // flag marker (challenge mode)
+    if(mode==='challenge' && challenge){
+      const fp = pathAt(challenge.targetS);
+      const fx = worldToScreenX(fp.x), fy = worldToScreenY(fp.y);
+      ctx.strokeStyle = C.flag; ctx.lineWidth=2;
+      ctx.beginPath(); ctx.moveTo(fx,fy); ctx.lineTo(fx,fy-46); ctx.stroke();
+      ctx.fillStyle = C.flag;
+      ctx.beginPath(); ctx.moveTo(fx,fy-46); ctx.lineTo(fx+18,fy-39); ctx.lineTo(fx,fy-32); ctx.closePath(); ctx.fill();
+    }
+
+    // ball
+    const bp = pathAt(s);
+    const bx = worldToScreenX(bp.x), by = worldToScreenY(bp.y), r = ballRadius();
+    const grad = ctx.createRadialGradient(bx-3,by-3,1,bx,by,r+4);
+    grad.addColorStop(0, activeIsDark()?'#ffe1a3':'#ffd47a'); grad.addColorStop(1, C.ke);
+    ctx.beginPath(); ctx.arc(bx,by,r,0,Math.PI*2); ctx.fillStyle=grad; ctx.fill();
+    ctx.strokeStyle = activeIsDark()?'#211505':'#4a3106'; ctx.lineWidth=1.5; ctx.stroke();
+
+    // velocity arrow
+    if(Math.abs(v) > 0.05){
+      const dirSign = Math.sign(v);
+      const arrowLen = Math.min(46, 10+Math.abs(v)*7);
+      const ax = bx + dirSign*bp.tx*arrowLen*(plotW/worldXMax)/((plotW/worldXMax));
+      // scale arrow in screen space using tangent direction (approx using world tangent, fine visually)
+      const ax2 = bx + dirSign*bp.tx*arrowLen;
+      const ay2 = by - dirSign*bp.ty*arrowLen;
+      ctx.strokeStyle = C.loss; ctx.lineWidth=2.2;
+      ctx.beginPath(); ctx.moveTo(bx,by); ctx.lineTo(ax2,ay2); ctx.stroke();
+      ctx.fillStyle = C.loss; ctx.beginPath(); ctx.arc(ax2,ay2,3.5,0,Math.PI*2); ctx.fill();
+    }
+
+    ctx.font='11px sans-serif'; ctx.textAlign='center';
+    ctx.fillStyle = C.chalk; ctx.fillText('m = '+mass.toFixed(1)+' kg', bx, by-r-10);
+    ctx.fillStyle = C.chalkDim; ctx.fillText('v = '+v.toFixed(2)+' m/s', bx, by+r+16);
+    ctx.textAlign='left';
+
+    if(particles.length){
+      for(const p of particles){ ctx.globalAlpha = Math.max(0,p.life); ctx.fillStyle = p.color; ctx.beginPath(); ctx.arc(p.x,p.y,p.size,0,Math.PI*2); ctx.fill(); }
+      ctx.globalAlpha = 1;
+    }
+  }
+
+  // ================= DRAW: GRAPH (with hover tooltip) =================
+  let graphMap = null; // {padL, padT, plotGW, plotGH, maxT, maxE}
+  let hoverT = null;
+
+  function drawGraph(){
+    const C = colors();
+    const gw = graphCanvas.width, gh = graphCanvas.height;
+    gctx.clearRect(0,0,gw,gh);
+    const padL=42, padB=22, padT=8, padR=12;
+    const plotGW = gw-padL-padR, plotGH = gh-padT-padB;
+    const maxE = Math.max(initialTotalEnergy*1.15, 1);
+    const maxT = Math.max(history.length?history[history.length-1].t:1, 1);
+    graphMap = {padL, padT, plotGW, plotGH, maxT, maxE};
+
+    function sx(t){ return padL + (t/maxT)*plotGW; }
+    function sy(e){ return padT + plotGH - (e/maxE)*plotGH; }
+
+    gctx.strokeStyle = C.grid; gctx.fillStyle = C.chalkDim; gctx.font='10px sans-serif'; gctx.lineWidth=1;
+    for(let i=0;i<=4;i++){ const eVal=(maxE/4)*i, yy=sy(eVal); gctx.beginPath(); gctx.moveTo(padL,yy); gctx.lineTo(gw-padR,yy); gctx.stroke(); gctx.textAlign='right'; gctx.fillText(eVal.toFixed(0), padL-6, yy+3); }
+    for(let i=0;i<=5;i++){ const tVal=(maxT/5)*i, xx=sx(tVal); gctx.textAlign='center'; gctx.fillText(tVal.toFixed(1)+'s', xx, gh-padB+13); }
+    gctx.textAlign='center'; gctx.fillText('Time (s)', padL+plotGW/2, gh-2);
+    gctx.save(); gctx.translate(11, padT+plotGH/2); gctx.rotate(-Math.PI/2); gctx.fillText('Energy (J)', 0, 0); gctx.restore();
+
+    if(history.length >= 2){
+      function drawLine(key,color,alpha){ gctx.beginPath(); for(let i=0;i<history.length;i++){ const px=sx(history[i].t), py=sy(history[i][key]); if(i===0) gctx.moveTo(px,py); else gctx.lineTo(px,py); } gctx.strokeStyle=color; gctx.globalAlpha=alpha!==undefined?alpha:1; gctx.lineWidth=2; gctx.stroke(); gctx.globalAlpha=1; }
+      drawLine('total', C.total, 0.55); drawLine('pe', C.pe); drawLine('ke', C.ke); drawLine('loss', C.loss);
+    }
+
+    if(hoverT !== null && history.length){
+      let best=0, bestD=Infinity;
+      for(let i=0;i<history.length;i++){ const d=Math.abs(history[i].t-hoverT); if(d<bestD){bestD=d;best=i;} }
+      const hp = history[best];
+      const hx = sx(hp.t);
+      gctx.strokeStyle = C.chalkDim; gctx.setLineDash([3,3]); gctx.lineWidth=1;
+      gctx.beginPath(); gctx.moveTo(hx, padT); gctx.lineTo(hx, padT+plotGH); gctx.stroke(); gctx.setLineDash([]);
+
+      const lines = ['t = '+hp.t.toFixed(2)+'s','KE = '+hp.ke.toFixed(1)+' J','PE = '+hp.pe.toFixed(1)+' J','Lost = '+hp.loss.toFixed(1)+' J','Total = '+hp.total.toFixed(1)+' J'];
+      gctx.font='11px sans-serif';
+      const boxW = 110, boxH = lines.length*14+10;
+      let boxX = hx+8; if(boxX+boxW > gw-4) boxX = hx-boxW-8;
+      let boxY = padT+4;
+      gctx.fillStyle = activeIsDark() ? 'rgba(16,25,35,0.92)' : 'rgba(255,255,255,0.95)';
+      gctx.strokeStyle = C.grid;
+      gctx.beginPath(); gctx.roundRect ? gctx.roundRect(boxX,boxY,boxW,boxH,6) : gctx.rect(boxX,boxY,boxW,boxH);
+      gctx.fill(); gctx.stroke();
+      gctx.fillStyle = C.chalk; gctx.textAlign='left';
+      lines.forEach((line,i)=> gctx.fillText(line, boxX+8, boxY+16+i*14));
+    }
+  }
+
+  graphCanvas.addEventListener('mousemove', (evt)=>{
+    if(!graphMap) return;
+    const rect = graphCanvas.getBoundingClientRect();
+    const scaleX = graphCanvas.width/rect.width;
+    const mx = (evt.clientX-rect.left)*scaleX;
+    const t = ((mx-graphMap.padL)/graphMap.plotGW) * graphMap.maxT;
+    hoverT = Math.max(0, Math.min(graphMap.maxT, t));
+    drawGraph();
+  });
+  graphCanvas.addEventListener('mouseleave', ()=>{ hoverT=null; drawGraph(); });
+
+  // ================= ANIMATION LOOP =================
+  let lastT = null;
+  function loop(ts){
+    if(lastT===null) lastT=ts;
+    let dt=(ts-lastT)/1000; lastT=ts;
+    dt = Math.min(dt,0.05)*simSpeed;
+    if(running){
+      const substeps=4;
+      for(let i=0;i<substeps;i++){ step(dt/substeps); if(!running) break; }
+      updateUI(); draw(); drawGraph();
+      if(running && stillTime >= STILL_THRESHOLD){
+        running=false; document.getElementById('ecs-play').textContent='Play'; document.getElementById('ecs-status').textContent='STOPPED';
+      }
+    }
+    updateParticles();
+    if(particles.length) draw();
+    requestAnimationFrame(loop);
+  }
+  requestAnimationFrame(loop);
+
+  function updateParticles(){
+    if(!particles.length) return;
+    for(const p of particles){ p.x+=p.vx; p.y+=p.vy; p.vy+=0.12; p.life-=0.018; }
+    particles = particles.filter(p=>p.life>0);
+  }
+
+  // ================= CONTROLS: LAB =================
+  const fricSlider=document.getElementById('ecs-fric'), massSlider=document.getElementById('ecs-mass'),
+        ivelSlider=document.getElementById('ecs-ivel'), speedSlider=document.getElementById('ecs-speed'),
+        gravSlider=document.getElementById('ecs-grav'), gravPreset=document.getElementById('ecs-grav-preset'),
+        playBtn=document.getElementById('ecs-play'), resetBtn=document.getElementById('ecs-reset'),
+        trailBox=document.getElementById('ecs-trail'), editTrackBox=document.getElementById('ecs-edit-track'),
+        scaleBox=document.getElementById('ecs-scale'), hint=document.getElementById('ecs-hint'),
+        presetSelect=document.getElementById('ecs-preset-select');
+
+  fricSlider.addEventListener('input', ()=>{ friction=parseFloat(fricSlider.value); document.getElementById('ecs-fric-val').textContent=friction.toFixed(2); });
+  massSlider.addEventListener('input', ()=>{ mass=parseFloat(massSlider.value); document.getElementById('ecs-mass-val').textContent=mass.toFixed(1)+' kg'; initialTotalEnergy=peAt(s)+keAt(v)+thermalLoss; updateUI(); draw(); });
+  ivelSlider.addEventListener('input', ()=>{ initialVelocitySetting=parseFloat(ivelSlider.value); document.getElementById('ecs-ivel-val').textContent=initialVelocitySetting.toFixed(1)+' m/s'; if(!running && simTime===0){ v=initialVelocitySetting; initialTotalEnergy=peAt(s)+keAt(v); updateUI(); draw(); } });
+  speedSlider.addEventListener('input', ()=>{ simSpeed=parseFloat(speedSlider.value); document.getElementById('ecs-speed-val').textContent=simSpeed.toFixed(2)+'x'; });
+  gravSlider.addEventListener('input', ()=>{ gravity=parseFloat(gravSlider.value); document.getElementById('ecs-grav-val').textContent=gravity.toFixed(1)+' N/kg'; gravPreset.value=''; initialTotalEnergy=peAt(s)+keAt(v)+thermalLoss; updateUI(); draw(); });
+  gravPreset.addEventListener('change', ()=>{ if(gravPreset.value){ gravity=parseFloat(gravPreset.value); gravSlider.value=gravity; document.getElementById('ecs-grav-val').textContent=gravity.toFixed(1)+' N/kg'; initialTotalEnergy=peAt(s)+keAt(v)+thermalLoss; updateUI(); draw(); } });
+  trailBox.addEventListener('change', ()=>{ showTrail=trailBox.checked; if(!showTrail) trail=[]; });
+  editTrackBox.addEventListener('change', ()=>{ editTrackEnabled=editTrackBox.checked; hint.textContent = editTrackEnabled ? 'drag the squares to reshape the track' : 'click + drag the ball'; draw(); });
+  scaleBox.addEventListener('change', ()=>{ showScale=scaleBox.checked; draw(); });
+  presetSelect.addEventListener('change', ()=>{ loadPreset(presetSelect.value); resetSim(defaultStartS()); });
+
+  playBtn.addEventListener('click', ()=>{ running=!running; playBtn.textContent=running?'Pause':'Play'; hint.style.opacity='0'; updateUI(); });
+  resetBtn.addEventListener('click', ()=>{ if(mode==='challenge' && challenge){ startChallengeAttempt(challenge); } else { resetSim(defaultStartS()); } hint.style.opacity = editTrackEnabled?'0':'1'; });
+
+  // ================= MODE SWITCH =================
+  const labControls=document.getElementById('ecs-lab-controls'), challengeControls=document.getElementById('ecs-challenge-controls'),
+        modeLabBtn=document.getElementById('ecs-mode-lab'), modeChallengeBtn=document.getElementById('ecs-mode-challenge'),
+        subHint=document.getElementById('ecs-sub-hint');
+
+  modeLabBtn.addEventListener('click', ()=>{
+    mode='lab'; challenge=null; challengeChecking=false; clearFeedback();
+    modeLabBtn.classList.add('active'); modeChallengeBtn.classList.remove('active');
+    labControls.style.display=''; challengeControls.style.display='none';
+    subHint.textContent='Drag the ball to set its starting point. Toggle "Edit Track" to reshape it.';
+    resetSim(defaultStartS());
+  });
+  modeChallengeBtn.addEventListener('click', ()=>{
+    mode='challenge';
+    modeChallengeBtn.classList.add('active'); modeLabBtn.classList.remove('active');
+    labControls.style.display='none'; challengeControls.style.display='';
+    subHint.textContent='Work out the answer, type it in, then hit Check to see the ball play it out.';
+    editTrackEnabled=false; editTrackBox.checked=false; hint.style.opacity='0';
+    generateChallenge(difficulty);
+  });
+  document.querySelectorAll('.ecs-diff-btn').forEach(btn=>{
+    btn.addEventListener('click', ()=>{ document.querySelectorAll('.ecs-diff-btn').forEach(b=>b.classList.remove('active')); btn.classList.add('active'); difficulty=btn.dataset.diff; generateChallenge(difficulty); });
+  });
+  document.getElementById('ecs-new-challenge').addEventListener('click', ()=> generateChallenge(difficulty));
+  document.getElementById('ecs-check-btn').addEventListener('click', onCheckAnswer);
+
+  // ================= DRAG: BALL + TRACK HANDLES (free 2D) =================
+  let draggingBall=false, draggingHandleIdx=-1;
+  function getCanvasCoords(evt){
+    const rect=canvas.getBoundingClientRect();
+    const scaleX=canvas.width/rect.width, scaleY=canvas.height/rect.height;
+    const clientX = evt.touches ? evt.touches[0].clientX : evt.clientX;
+    const clientY = evt.touches ? evt.touches[0].clientY : evt.clientY;
+    return { x:(clientX-rect.left)*scaleX, y:(clientY-rect.top)*scaleY };
+  }
+  function tryStartDrag(evt){
+    if(running || mode==='challenge') return;
+    const p = getCanvasCoords(evt);
+    if(editTrackEnabled){
+      for(let i=0;i<points.length;i++){
+        const sx=worldToScreenX(points[i].x), sy=worldToScreenY(points[i].y);
+        if(Math.hypot(p.x-sx,p.y-sy) < 16){ draggingHandleIdx=i; return; }
+      }
+    }
+    const bp = pathAt(s);
+    const bx=worldToScreenX(bp.x), by=worldToScreenY(bp.y);
+    if(Math.hypot(p.x-bx,p.y-by) < ballRadius()+14){ draggingBall=true; hint.style.opacity='0'; }
+  }
+  function doDrag(evt){
+    if(draggingHandleIdx>=0){
+      const p = getCanvasCoords(evt);
+      let wx = screenToWorldX(p.x), wy = screenToWorldY(p.y);
+      wx = Math.max(0, Math.min(worldXMax, wx));
+      wy = Math.max(0.05, Math.min(maxHeightForScale-0.1, wy));
+      points[draggingHandleIdx].x = wx; points[draggingHandleIdx].y = wy;
+      buildSamples();
+      resetSim(s);
+      evt.preventDefault();
+      return;
+    }
+    if(!draggingBall) return;
+    const p = getCanvasCoords(evt);
+    // find nearest point on the sampled path to the cursor (since path is no longer a function of x)
+    let bestS = s, bestD = Infinity;
+    for(let i=0;i<samples.length;i++){
+      const sx=worldToScreenX(samples[i].x), sy=worldToScreenY(samples[i].y);
+      const d = Math.hypot(p.x-sx, p.y-sy);
+      if(d<bestD){ bestD=d; bestS=cumLen[i]; }
+    }
+    s = bestS; v=0; thermalLoss=0; simTime=0; trail=[]; history=[];
+    initialTotalEnergy = peAt(s)+keAt(v);
+    updateUI(); draw(); drawGraph();
+    evt.preventDefault();
+  }
+  function endDrag(){
+    if(draggingBall){ v=initialVelocitySetting; initialTotalEnergy=peAt(s)+keAt(v); updateUI(); draw(); }
+    draggingBall=false; draggingHandleIdx=-1;
+  }
+  canvas.addEventListener('mousedown', tryStartDrag);
+  canvas.addEventListener('mousemove', doDrag);
+  window.addEventListener('mouseup', endDrag);
+  canvas.addEventListener('touchstart', tryStartDrag, {passive:true});
+  canvas.addEventListener('touchmove', doDrag, {passive:false});
+  window.addEventListener('touchend', endDrag);
+
+  // ================= CHALLENGE ENGINE =================
+  function headlessReach(m, fric, grav, s0, v0, targetS, maxSimTime){
+    let hs=s0, hv=v0, ht=0, hLoss=0;
+    const dt=0.01;
+    while(ht < maxSimTime){
+      const p = pathAt(hs);
+      let fa=0;
+      if(Math.abs(hv)>1e-4) fa = -fric*grav*Math.abs(p.tx)*Math.sign(hv);
+      const a = -grav*p.ty + fa;
+      const prevS = hs;
+      hv += a*dt;
+      const ds = hv*dt;
+      if(Math.abs(hv)>1e-4) hLoss += fric*m*grav*Math.abs(p.tx)*Math.abs(ds);
+      hs += ds;
+      if(hs<0.05){ hs=0.05; if(hv<0) hv=0; }
+      if(hs>totalLength-0.05){ hs=totalLength-0.05; if(hv>0) hv=0; }
+      ht += dt;
+      if((prevS-targetS)*(hs-targetS) <= 0) return { reached:true, v:Math.abs(hv), loss:hLoss };
+      if(Math.abs(hv)<0.02 && ht>2) break;
+    }
+    return { reached:false };
+  }
+  function randRange(a,b){ return a+Math.random()*(b-a); }
+
+  function generateChallenge(diff){
+    clearFeedback(); challengeChecking=false;
+    let attempt=null;
+    for(let tries=0; tries<40; tries++){
+      const s0 = randRange(totalLength*0.08, totalLength*0.92);
+      let targetS = randRange(totalLength*0.08, totalLength*0.92);
+      if(Math.abs(targetS-s0) < totalLength*0.15) continue;
+      const m = Math.round(randRange(0.6,2.8)*10)/10;
+      let fric=0, v0=0;
+      if(diff==='easy'){ fric=0; v0=0; }
+      else if(diff==='medium'){ fric=0; v0 = Math.round(randRange(0.5,3)*10)/10 * (targetS>s0?1:-1); }
+      else { fric = Math.round(randRange(0.05,0.22)*100)/100; v0 = Math.round(randRange(0.5,3)*10)/10 * (targetS>s0?1:-1); }
+      const result = headlessReach(m, fric, gravity, s0, v0, targetS, 45);
+      if(result.reached){
+        attempt = { m, friction:fric, s0, v0, targetS, h0: pathAt(s0).y-minY, h1: pathAt(targetS).y-minY, v1Truth:result.v, lossTruth:result.loss, keTruth:0.5*m*result.v*result.v, diff };
+        break;
+      }
+    }
+    if(!attempt){
+      const s0=totalLength*0.1, targetS=totalLength*0.75, m=1.0;
+      const result = headlessReach(m,0,gravity,s0,0,targetS,45);
+      attempt = { m, friction:0, s0, v0:0, targetS, h0:pathAt(s0).y-minY, h1:pathAt(targetS).y-minY, v1Truth:result.v, lossTruth:0, keTruth:0.5*m*result.v*result.v, diff };
+    }
+    attempt.askType = diff==='easy' ? 'KE' : 'v';
+    challenge = attempt;
+    buildPrompt(challenge);
+    startChallengeAttempt(challenge);
+  }
+
+  function buildPrompt(c){
+    let text='';
+    if(c.diff==='easy'){
+      text = `A ${c.m.toFixed(1)} kg ball starts at rest at a height of ${c.h0.toFixed(2)} m. It rolls (no friction) until it reaches the point marked by the flag, at height ${c.h1.toFixed(2)} m. What is its kinetic energy at the flag, in joules? (using g = ${gravity.toFixed(1)} N/kg)`;
+      document.getElementById('ecs-unit-label').textContent='J';
+    } else if(c.diff==='medium'){
+      text = `A ${c.m.toFixed(1)} kg ball starts at height ${c.h0.toFixed(2)} m moving at ${Math.abs(c.v0).toFixed(1)} m/s toward the flag. There is no friction. What is its speed, in m/s, when it reaches the flag at height ${c.h1.toFixed(2)} m? (using g = ${gravity.toFixed(1)} N/kg)`;
+      document.getElementById('ecs-unit-label').textContent='m/s';
+    } else {
+      text = `A ${c.m.toFixed(1)} kg ball starts at height ${c.h0.toFixed(2)} m moving at ${Math.abs(c.v0).toFixed(1)} m/s toward the flag. As it travels to the flag at height ${c.h1.toFixed(2)} m, ${c.lossTruth.toFixed(1)} J is lost to friction. What is its speed, in m/s, when it reaches the flag? (using g = ${gravity.toFixed(1)} N/kg)`;
+      document.getElementById('ecs-unit-label').textContent='m/s';
+    }
+    document.getElementById('ecs-prompt-box').textContent = text;
+    document.getElementById('ecs-answer-input').value = '';
+  }
+
+  function startChallengeAttempt(c){
+    mass=c.m; friction=c.friction; s=c.s0; v=c.v0;
+    thermalLoss=0; trail=[]; history=[]; simTime=0; stillTime=0;
+    initialTotalEnergy = peAt(s)+keAt(v);
+    running=false; playBtn.textContent='Play';
+    updateUI(); draw(); drawGraph();
+  }
+
+  function onCheckAnswer(){
+    if(!challenge) return;
+    const val = parseFloat(document.getElementById('ecs-answer-input').value);
+    if(isNaN(val)) return;
+    challenge.userAnswer = val;
+    challengeChecking = true; running = true; playBtn.textContent='Pause';
+    updateUI();
+  }
+
+  function finishChallengeCheck(){
+    running=false; challengeChecking=false; playBtn.textContent='Play';
+    const truth = challenge.askType==='KE' ? challenge.keTruth : challenge.v1Truth;
+    const tol = Math.max(0.15, Math.abs(truth)*0.08);
+    const correct = Math.abs(challenge.userAnswer-truth) <= tol;
+    updateUI(); draw(); drawGraph();
+    showFeedback(correct);
+  }
+
+  function showFeedback(correct){
+    const el = document.getElementById('ecs-feedback-msg');
+    if(correct){
+      el.innerHTML = 'You did it! <span class="small">click to try a new challenge</span>';
+      launchFireworks();
+    } else {
+      el.innerHTML = 'Try again <span class="small">click to retry this challenge</span>';
+    }
+    el.classList.add('show');
+    el.onclick = ()=>{ clearFeedback(); if(correct){ generateChallenge(difficulty); } else { startChallengeAttempt(challenge); } };
+  }
+  function clearFeedback(){
+    const el = document.getElementById('ecs-feedback-msg');
+    el.classList.remove('show'); el.onclick=null; el.innerHTML=''; particles=[];
+  }
+  function launchFireworks(){
+    const C = colors();
+    const fp = pathAt(challenge.targetS);
+    const bx = worldToScreenX(fp.x), by = worldToScreenY(fp.y);
+    const palette = [C.ke, C.pe, C.loss, C.flag];
+    for(let i=0;i<70;i++){
+      const angle = Math.random()*Math.PI*2, speed = randRange(1.5,6);
+      particles.push({ x:bx, y:by-30, vx:Math.cos(angle)*speed, vy:Math.sin(angle)*speed-2, life:1, size:randRange(2,4), color:palette[Math.floor(Math.random()*palette.length)] });
+    }
+  }
+
+  // ================= INIT =================
+  resetSim(defaultStartS());
+})();
+</script>
